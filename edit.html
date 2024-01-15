@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="style.css">
+  <title>Screenshoter</title>
+</head>
+<body class="bd">
+   <h1>Редактирование скриншота</h1>
+   <div class="tools">
+     <button type="button" id="button1" class="but">✏</button>
+     <button type="button" id="button2" class="but">◼</button>
+     <button type="button" id="button3" class="but">📏</button>
+     <button type="button" id="button4" class="but">А</button>
+     <button type="button" id="button5" class="but">○</button>
+     <button type="button" id="button6" class="but color">
+       <form action="handler.php">
+         <input type="color" id="bg" value="#ff0000">
+       </form>
+     </button>
+   </div>
+    <canvas id="canvas" width="640" height="298"></canvas>
+    <button id="saveButton">Сохранить</button>
+    <script src="edit-screenshot.js"></script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "version": "0.1.0",
+  "name": "Screenshoter",
+  "description": "Quick access to screenshots",
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": "icon.png"
+  },
+  "permissions": ["storage", "downloads", "activeTab", "tabs"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "host_permissions": [
+    "storage",
+    "activeTab",
+    "downloads",
+    "tabs"
+  ],
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "capture-screenshot": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+U"
+      },
+      "description": "Capture screenshot"
+    }
+  },
+  "browser_action": {
+    "default_icon": "icon.png",
+    "default_popup": "index.html",
+    "default_title": "Screenshoter"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  },
+  "short_name": "Screenshoter",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4caf50"
+}
