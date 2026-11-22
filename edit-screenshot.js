@@ -34,30 +34,46 @@ document.addEventListener('DOMContentLoaded', function() {
   var y = mouse.y;
   var angle = Math.atan2(mouse.y - x, mouse.x - y);
   var text;
+  var scaleX = 1, scaleY = 1;
+  var savedImageData;
 
   function mousedown(e){
-    mouse.x = e.pageX - this.offsetLeft;
-    mouse.y = e.pageY - this.offsetTop;
+    savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    mouse.x = (e.pageX - this.offsetLeft) * scaleX;
+    mouse.y = (e.pageY - this.offsetTop) * scaleY;
     x = mouse.x;
     y = mouse.y;
     draw = true;
     ctx.strokeStyle = bg.value;
+    ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.moveTo(mouse.x, mouse.y);
   }
 
   function mousemove1(e){
     if(draw == true){
-        mouse.x = e.pageX - this.offsetLeft;
-        mouse.y = e.pageY - this.offsetTop;
+        mouse.x = (e.pageX - this.offsetLeft) * scaleX;
+        mouse.y = (e.pageY - this.offsetTop) * scaleY;
         ctx.lineTo(mouse.x, mouse.y);
         ctx.stroke();
     }
   }
 
+  function mousemoveRect(e){
+    if(draw == true){
+      ctx.putImageData(savedImageData, 0, 0);
+      var mx = (e.pageX - this.offsetLeft) * scaleX;
+      var my = (e.pageY - this.offsetTop) * scaleY;
+      var w = mx - x;
+      var h = my - y;
+      ctx.lineWidth = 6;
+      ctx.strokeRect(Math.min(x, mx), Math.min(y, my), Math.abs(w), Math.abs(h));
+    }
+  }
+
   function mouseup1(e){
-    mouse.x = e.pageX - this.offsetLeft;
-    mouse.y = e.pageY - this.offsetTop;
+    mouse.x = (e.pageX - this.offsetLeft) * scaleX;
+    mouse.y = (e.pageY - this.offsetTop) * scaleY;
     ctx.lineTo(mouse.x, mouse.y);
     ctx.stroke();
     ctx.closePath();
@@ -65,16 +81,18 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function mouseup2(e){
-    mouse.x = e.pageX - this.offsetLeft;
-    mouse.y = e.pageY - this.offsetTop;
-    ctx.strokeRect(x, y, mouse.x-x, mouse.y-y);
-    ctx.closePath();
+    mouse.x = (e.pageX - this.offsetLeft) * scaleX;
+    mouse.y = (e.pageY - this.offsetTop) * scaleY;
+    var w = mouse.x - x;
+    var h = mouse.y - y;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(Math.min(x, mouse.x), Math.min(y, mouse.y), Math.abs(w), Math.abs(h));
     draw = false;
   }
 
   function mouseup3(e){
-    mouse.x = e.pageX - this.offsetLeft;
-    mouse.y = e.pageY - this.offsetTop;
+    mouse.x = (e.pageX - this.offsetLeft) * scaleX;
+    mouse.y = (e.pageY - this.offsetTop) * scaleY;
     ctx.lineTo(mouse.x, mouse.y);
     ctx.stroke();
     ctx.closePath();
@@ -90,22 +108,25 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function drawtext(e){
-    mouse.x = e.pageX - this.offsetLeft;
-    mouse.y = e.pageY - this.offsetTop;
-    ctx.fillStyle = "#000";
-    ctx.strokeStyle = "#F00";
-    ctx.font = "10pt Times new roman";
-    can(e.pageX, e.pageY);
+    mouse.x = (e.pageX - this.offsetLeft) * scaleX;
+    mouse.y = (e.pageY - this.offsetTop) * scaleY;
+    ctx.fillStyle = "#fff";
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 8;
+    ctx.font = "60px Arial";
+    can(mouse.x, mouse.y);
   }
 
   function can(pageX, pageY){
     text = prompt("Введите текст:");
-    ctx.fillText(text, pageX - canvas.offsetLeft, pageY - canvas.offsetTop);
+    if (!text) return;
+    ctx.strokeText(text, pageX, pageY);
+    ctx.fillText(text, pageX, pageY);
   }
 
   function circle(e){
-    mouse.x = e.pageX - this.offsetLeft;
-    mouse.y = e.pageY - this.offsetTop;
+    mouse.x = (e.pageX - this.offsetLeft) * scaleX;
+    mouse.y = (e.pageY - this.offsetTop) * scaleY;
     ctx.beginPath();
     ctx.arc(x, y,  Math.sqrt(Math.pow((mouse.x-x), 2)+Math.pow((mouse.y-y), 2)), 0, 2*Math.PI, false);
     ctx.stroke();
@@ -118,6 +139,7 @@ document.addEventListener('DOMContentLoaded', function() {
     canvas.removeEventListener('mouseup', mouseup2);
     canvas.removeEventListener('mouseup', mouseup3);
     canvas.removeEventListener('mousemove', mousemove1);
+    canvas.removeEventListener('mousemove', mousemoveRect);
     canvas.removeEventListener('click', drawtext);
     canvas.removeEventListener("mouseup", circle);
   }
@@ -132,6 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
   button2.addEventListener('click', function() {
       remove();
       canvas.addEventListener("mousedown", mousedown);
+      canvas.addEventListener("mousemove", mousemoveRect);
       canvas.addEventListener("mouseup",  mouseup2);
     });
 
@@ -159,7 +182,13 @@ document.addEventListener('DOMContentLoaded', function() {
   image.src = localStorage.getItem('editUrl');
 
   image.onload = function() {
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    canvas.style.width = '640px';
+    canvas.style.height = '298px';
+    scaleX = canvas.width / canvas.clientWidth;
+    scaleY = canvas.height / canvas.clientHeight;
+    ctx.drawImage(image, 0, 0);
   };
 
   saveButton.addEventListener('click', function() {

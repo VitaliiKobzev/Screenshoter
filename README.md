@@ -1,5 +1,5 @@
-# Screenshoter
-Плагин для Google Chrome и Яндекс Браузера. Выполняет функции: создание, загрузку на Imgur, скачивание и редактирование.
+# Screenshoter v0.2.0
 
-Чтобы загружать с помощью API Imgur, нужно зарегистрировать приложение на https://api.imgur.com/oauth2/addclient.
-Далее нужно на https://imgur.com/account/settings/apps взять clientId и вставить в screenshot.js.
+Plugin for Google Chrome and Yandex Browser. Performs functions: creation, upload with link provision, download, and editing of screenshots.
+
+Плагин для Google Chrome и Яндекс Браузера. Выполняет функции: создание, загрузку с предоставлением ссылки, скачивание и редактирование.

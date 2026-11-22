@@ -138,3 +138,82 @@ canvas{
 .color{
     padding: 0px 0px;
 }
+
+.magic-toggle {
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  cursor: pointer;
+  padding: 8px 14px;
+  margin-left: 10px;
+  vertical-align: middle;
+  border-radius: 10px;
+  transition: transform 0.2s ease;
+}
+
+.magic-toggle:active {
+  transform: scale(0.9);
+}
+
+body {
+  transition: background 2.5s ease;
+}
+
+body.magic-gradient {
+  background: linear-gradient(135deg, #ff0000, #ffa500, #ffff00, #ffa500, #ff0000);
+  background-size: 300% 300%;
+  animation: magicGradient 8s ease infinite;
+}
+
+@keyframes magicGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+#localScreenshots {
+  display: none;
+  margin-top: 15px;
+  padding: 10px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+}
+
+#localScreenshots.show {
+  display: block;
+}
+
+#historyToggle {
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 6px 12px;
+  margin-left: 10px;
+  vertical-align: middle;
+  border-radius: 6px;
+  border: 1px solid #999;
+  color: #333;
+}
+
+#historyToggle:hover {
+  background: #f0f0f0;
+}
