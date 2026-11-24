@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Screenshoter — автотесты</title>
+  <style>
+    body{font-family:sans-serif;padding:20px;background:#f8f005}
+    h2{color:#333}
+    .ok{color:#0a0} .bad{color:#a00}
+    .log p{margin:3px 0;font-family:monospace;font-size:14px}
+    .summary{font-weight:bold;font-size:16px;margin-top:12px}
+    button.main_btn{margin:10px 0;padding:10px 20px;font-size:16px;background:#4caf50;color:#fff;border:none;cursor:pointer}
+    #localScreenshots{display:none;margin-top:15px;padding:10px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px}
+    #localScreenshots.show{display:block}
+  </style>
+</head>
+<body>
+  <h2>Screenshoter — автотесты</h2>
+  <p>Откройте эту страницу в Chrome или Яндекс Браузере. Все проверки должны быть <span class="ok">✅</span>.</p>
+
+  <button class="main_btn">Сделать скриншот</button>
+  <button id="magicToggle">🪄</button>
+  <button id="historyToggle">📜 История</button>
+  <div id="localScreenshots">
+    <h3>Мои скриншоты (хранятся 7 дней)</h3>
+    <div id="localScreenshotsList"></div>
+  </div>
+
+  <div id="log"></div>
+  <div id="summary" class="summary"></div>
+
+  <script>
+  // ==================== СТАБЫ (заглушки) ====================
+  // Квотированный localStorage (~5 МБ), имитирующий QuotaExceededError.
+  (function installStorageStub(){
+    var QUOTA = 5 * 1024 * 1024;
+    var store = {}, bytes = 0;
+    function sizeOf(v){
+      try { return new Blob([String(v)]).size; } catch(e) { return String(v).length * 2; }
+    }
+    var proto = {
+      getItem: function(k){ return k in store ? String(store[k]) : null; },
+      setItem: function(k, v){
+        v = String(v);
+        var added = (k in store) ? sizeOf(v) - sizeOf(String(store[k])) : sizeOf(v);
+        if (bytes + added > QUOTA) {
+          var e = new DOMException(
+            "Failed to execute 'setItem' on 'Storage': Setting the value of '" + k + "' exceeded the quota.",
+            'QuotaExceededError');
+          throw e;
+        }
+        if (k in store) bytes -= sizeOf(String(store[k]));
+        store[k] = v; bytes += added;
+      },
+      removeItem: function(k){ if (k in store) { bytes -= sizeOf(String(store[k])); delete store[k]; } },
+      clear: function(){ store = {}; bytes = 0; },
+      get length(){ return Object.keys(store).length; },
+      key: function(i){ var keys = Object.keys(store); return keys[i] || null; }
+    };
+    try { Object.defineProperty(window, 'localStorage', { value: proto, configurable: true, writable: true }); }
+    catch (e) { window.localStorage = proto; }
+  })();
+
+  // Заглушка chrome.* (расширение не загружено, эмулируем captureVisibleTab).
+  window.chrome = {
+    runtime: { lastError: undefined },
+    tabs: {
+      captureVisibleTab: function(query, opts, cb){
+        setTimeout(function(){
+          cb(window.__nextScreenshotDataUrl || 'data:image/png;base64,stub');
+        }, 0);
+      }
+    },
+    downloads: {
+      download: function(opts, cb){ if (cb) cb(); }
+    }
+  };
+
+  function sleep(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
+
+  var results = [];
+  function assert(name, ok, extra){
+    results.push({ name: name, ok: !!ok, extra: extra || '' });
+  }
+
+  // dataUrl скриншота. Если large — ~2 МБ base64 (нагружает квоту).
+  function makeDataUrl(large){
+    var c = document.createElement('canvas');
+    c.width = 200; c.height = 100;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = large ? '#' + Math.floor(Math.random()*16777215).toString(16) : '#ff0000';
+    ctx.fillRect(0, 0, 200, 100);
+    if (!large) return c.toDataURL('image/png');
+    return 'data:image/png;base64,' + 'X'.repeat(2 * 1024 * 1024);
+  }
+
+  // Загружаем реальный скрипт расширения.
+  var script = document.createElement('script');
+  script.src = '../screenshot.js';
+  document.head.appendChild(script);
+  script.onload = function(){ runTests(); };
+  // ==================== ТЕСТЫ ====================
+  async function runTests(){
+    try { localStorage.removeItem('localScreenshots'); } catch(e) {}
+
+    // 1) generateFileName — формат DD_MM_YY_мс
+    try {
+      var re = /^\d{2}_\d{2}_\d{2}_\d+$/;
+      assert('generateFileName формат (ДД_ММ_ГГ_мс)', re.test(generateFileName()), generateFileName());
+    } catch(e){ assert('generateFileName формат', false, e.message); }
+
+    // 2) readScreenshots — битый JSON не ломает приложение, хранилище сбрасывается
+    try {
+      localStorage.setItem('localScreenshots', '{не валидный json!!!');
+      var parsed = readScreenshots();
+      assert('readScreenshots(битый JSON) → []', Array.isArray(parsed) && parsed.length === 0);
+      assert('хранилище сброшено после битого JSON', localStorage.getItem('localScreenshots') === null);
+    } catch(e){ assert('readScreenshots(битый JSON)', false, e.message); }
+
+    // 3) Кнопка «Сделать скриншот» работает N раз подряд, включая большие скриншоты (квота).
+    var total = 15;
+    for (var i = 0; i < total; i++) {
+      window.__nextScreenshotDataUrl = makeDataUrl(i % 3 === 0);
+      try {
+        takeScreenshot();
+        assert('клик #' + (i + 1) + ' не бросил исключение', true);
+      } catch(e) {
+        assert('клик #' + (i + 1) + ' не бросил исключение', false, e.message);
+      }
+      await sleep(120);
+    }
+    await sleep(400);
+
+    // 4) Состояние хранилища после нагрузки на квоту
+    try {
+      var stored = readScreenshots();
+      assert('история не пуста (последний скриншот сохранён)', stored.length >= 1, 'count=' + stored.length);
+      assert('история не превышает лимит 12', stored.length <= 12, 'count=' + stored.length);
+      var jpegCount = stored.filter(function(s){ return s && s.dataUrl && s.dataUrl.indexOf('data:image/jpeg') === 0; }).length;
+      assert('хранится хотя бы один сжатый скриншот (jpeg)', jpegCount >= 1, 'jpegCount=' + jpegCount);
+    } catch(e){ assert('проверка хранилища', false, e.message); }
+
+    // 5) Рендер истории не ломается (в т.ч. при заполненной квоте)
+    try {
+      renderLocalScreenshots();
+      assert('renderLocalScreenshots не бросил исключение', true);
+    } catch(e){ assert('renderLocalScreenshots не бросил исключение', false, e.message); }
+
+    // 6) Клик по самой кнопке «Сделать скриншот» срабатывает
+    try {
+      localStorage.removeItem('localScreenshots');
+      window.__nextScreenshotDataUrl = makeDataUrl(false);
+      var btn = document.querySelector('.main_btn');
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await sleep(500);
+      var stored2 = readScreenshots();
+      assert('клик по кнопке «Сделать скриншот» срабатывает', stored2.length >= 1, 'count=' + stored2.length);
+    } catch(e){ assert('клик по кнопке «Сделать скриншот» срабатывает', false, e.message); }
+    // ==================== ОТЧЁТ ====================
+    var log = document.getElementById('log');
+    var summary = document.getElementById('summary');
+    var pass = results.filter(function(r){ return r.ok; }).length;
+    var fail = results.length - pass;
+    var allOk = fail === 0;
+    summary.textContent = 'Итого: ' + pass + '/' + results.length + ' прошло' + (allOk ? ' — все проверки ✅' : ' — ' + fail + ' ошибок ❌');
+    summary.className = 'summary ' + (allOk ? 'ok' : 'bad');
+    log.innerHTML = results.map(function(r){
+      return '<p class="' + (r.ok ? 'ok' : 'bad') + '">' + (r.ok ? '✅' : '❌') + ' ' + r.name + (r.extra ? ' — ' + r.extra : '') + '</p>';
+    }).join('');
+    console.log('TEST RESULTS', results);
+    if (!allOk) {
+      log.style.color = '#a00';
+      alert('Некоторые тесты не прошли — смотрите консоль и страницу');
+    }
+  }
+  </script>
+</body>
+</html>

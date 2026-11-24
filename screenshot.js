@@ -23,7 +23,7 @@ function takeScreenshot() {
     downloadButton.classList.add('delete');
 
     editButton.addEventListener('click', function() {
-      localStorage.setItem('editUrl', dataUrl);
+      try { localStorage.setItem('editUrl', dataUrl); } catch (e) {}
       location.href = 'edit.html';
     });
 
@@ -42,14 +42,18 @@ function takeScreenshot() {
       uploadToBasepic(dataUrl, uploadButton, originalHtml);
     });
 
-    saveScreenshotLocally(dataUrl);
+    // Сохраняем в историю «огнём и забываем»: квота хранилища не должна ломать скриншот
+    saveScreenshotLocally(dataUrl).catch(function() {});
 
-    document.body.appendChild(img);
-    document.body.appendChild(editButton);
-    document.body.appendChild(downloadButton);
-    document.body.appendChild(uploadButton);
-
-    renderLocalScreenshots();
+    try {
+      document.body.appendChild(img);
+      document.body.appendChild(editButton);
+      document.body.appendChild(downloadButton);
+      document.body.appendChild(uploadButton);
+      renderLocalScreenshots();
+    } catch (e) {
+      console.error('Screenshoter: не удалось отобразить скриншот', e);
+    }
   });
 }
 
@@ -82,6 +86,14 @@ if (historyToggle && historyContainer) {
     }
   });
 }
+
+  // Горячая клавиша внутри всплывающего окна: Ctrl+Shift+S / Cmd+Shift+S делает скриншот
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyS') {
+      e.preventDefault();
+      takeScreenshot();
+    }
+  });
 
 function createStyledButton(text, icon, bgColor) {
   var button = document.createElement('button');
@@ -153,29 +165,93 @@ function generateFileName() {
   return day + '_' + month + '_' + year + '_' + ms;
 }
 
-function saveScreenshotLocally(dataUrl) {
-  var screenshots = JSON.parse(localStorage.getItem('localScreenshots') || '[]');
-  var now = Date.now();
-  var weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-  screenshots = screenshots.filter(function(s) { return s.timestamp > weekAgo; });
-  screenshots.unshift({ id: now, dataUrl: dataUrl, timestamp: now });
-  if (screenshots.length > 30) {
-    screenshots.length = 30;
+const STORAGE_KEY = 'localScreenshots';
+const MAX_SCREENSHOTS = 12;
+const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const DOWNSCALE_MAX_WIDTH = 600;
+const DOWNSCALE_QUALITY = 0.75;
+
+function downscaleDataUrl(dataUrl, maxWidth, quality) {
+  return new Promise(function(resolve) {
+    var img = new Image();
+    img.onload = function() {
+      var w = img.width;
+      var h = img.height;
+      if (w > maxWidth) {
+        h = Math.round(h * (maxWidth / w));
+        w = maxWidth;
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = function() { resolve(dataUrl); };
+    img.src = dataUrl;
+  });
+}
+
+function readScreenshots() {
+  try {
+    var arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    console.warn('Screenshoter: повреждённое хранилище localScreenshots, сброс', e);
+    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+    return [];
   }
-  localStorage.setItem('localScreenshots', JSON.stringify(screenshots));
+}
+
+function writeScreenshots(screenshots) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(screenshots));
+    return true;
+  } catch (e) {
+    console.warn('Screenshoter: не удалось записать localStorage (квота?)', e);
+    return false;
+  }
+}
+
+function pruneScreenshots(screenshots, now) {
+  var weekAgo = now - MAX_AGE_MS;
+  return screenshots
+    .filter(function(s) { return s && typeof s.timestamp === 'number' && s.timestamp > weekAgo; })
+    .slice(0, MAX_SCREENSHOTS);
+}
+
+function saveScreenshotLocally(dataUrl) {
+  // Сжимаем перед сохранением, чтобы вписаться в квоту localStorage (~5 МБ).
+  return downscaleDataUrl(dataUrl, DOWNSCALE_MAX_WIDTH, DOWNSCALE_QUALITY).then(function(toStore) {
+    var now = Date.now();
+    var screenshots = pruneScreenshots(readScreenshots(), now);
+    screenshots.unshift({ id: now, dataUrl: toStore, timestamp: now });
+
+    if (!writeScreenshots(screenshots)) {
+      // QuotaExceededError: оставим меньше скриншотов и попробуем ещё раз
+      screenshots = screenshots.slice(0, 6);
+      writeScreenshots(screenshots);
+    }
+  }).catch(function(e) {
+    console.warn('Screenshoter: ошибка сохранения в историю', e);
+  });
 }
 
 function renderLocalScreenshots() {
-  var container = document.getElementById('localScreenshotsList');
-  if (!container) {
-    return;
-  }
-  var screenshots = JSON.parse(localStorage.getItem('localScreenshots') || '[]');
-  var now = Date.now();
-  var weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-  screenshots = screenshots.filter(function(s) { return s.timestamp > weekAgo; });
-  localStorage.setItem('localScreenshots', JSON.stringify(screenshots));
-  container.innerHTML = '';
+  try {
+    var container = document.getElementById('localScreenshotsList');
+    if (!container) {
+      return;
+    }
+    var now = Date.now();
+    var all = readScreenshots();
+    var screenshots = pruneScreenshots(all, now);
+    // Пишем обратно только если фильтрация удалила старые записи
+    if (screenshots.length !== all.length) {
+      writeScreenshots(screenshots);
+    }
+    container.innerHTML = '';
   if (screenshots.length === 0) {
     container.innerHTML = '<p>Здесь будут ваши скриншоты (хранятся 7 дней)</p>';
     return;
@@ -210,4 +286,7 @@ function renderLocalScreenshots() {
     div.appendChild(btn);
     container.appendChild(div);
   });
+  } catch (e) {
+    console.error('Screenshoter: не удалось отобразить историю', e);
+  }
 }

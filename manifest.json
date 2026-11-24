@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "name": "Screenshoter",
   "description": "Quick access to screenshots",
   "action": {
@@ -20,7 +20,7 @@
   "commands": {
     "capture-screenshot": {
       "suggested_key": {
-        "default": "Ctrl+Shift+U"
+        "default": "Ctrl+Shift+S"
       },
       "description": "Capture screenshot"
     }
